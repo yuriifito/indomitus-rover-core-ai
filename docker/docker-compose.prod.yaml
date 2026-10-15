@@ -1,5 +1,12 @@
+# indomitus-rover-core-ai on the Jetson: lives in ~/indomitus-rover-core-ai next to the
+# team's ~/indomitus-rover-core and runs as its own container (rover_ai), from this
+# fork's CI image (ROS 2 Jazzy). IMAGE_NAME / IMAGE_TAG come from the .env file
+# next to this compose file, written by scripts/deploy_to_rover.sh.
+#
+# rover_prod and rover_ai can both exist, but run nodes in only one of them at a
+# time: both use host networking, the same ROS_DOMAIN_ID and the same CAN buses.
 services:
-  rover_prod:
+  rover_ai:
     platform: linux/arm64
     runtime: nvidia
     build:
@@ -7,13 +14,13 @@ services:
       dockerfile: docker/Dockerfile
       target: prod
       args:
-        BASE_IMAGE: ${BASE_IMAGE:-ros:humble-ros-base}
-        UBUNTU_VERSION: ${UBUNTU_VERSION:-22.04}
-        TARGET_ROS_DISTRO: ${TARGET_ROS_DISTRO:-humble}
+        BASE_IMAGE: ${BASE_IMAGE:-ros:jazzy-ros-base}
+        UBUNTU_VERSION: ${UBUNTU_VERSION:-24.04}
+        TARGET_ROS_DISTRO: ${TARGET_ROS_DISTRO:-jazzy}
 
-    image: ${IMAGE_NAME:-ghcr.io/ucuspacerobotics/indomitus-rover-core}:${IMAGE_TAG:-local-prod}
+    image: ${IMAGE_NAME:-ghcr.io/yuriifito/indomitus-rover-core-ai}:${IMAGE_TAG:-develop-prod}
     pull_policy: never
-    container_name: rover_prod
+    container_name: rover_ai
     command: tail -f /dev/null # command: autolaunch
     network_mode: host
     privileged: true
@@ -39,7 +46,14 @@ services:
       - SDL_VIDEODRIVER=dummy
       - SDL_AUDIODRIVER=dummy
     volumes:
-      - /home/indomitus-rover/indomitus-rover-core/src:/opt/ws/src:rw
+      # Relative to this compose file, i.e. the project directory on the Jetson.
+      - ./src:/opt/ws/src:rw
+      # Build output on the host: survives container re-creation, and hides the
+      # image's own build/ (made from the team's source tree, whose CMake caches
+      # point at different package paths).
+      - ./build:/opt/ws/build:rw
+      - ./install:/opt/ws/install:rw
+      - ./log:/opt/ws/log:rw
       - /dev:/dev:rw
       - /run/udev:/run/udev:ro
       # - /usr/local/zed/settings/:/usr/local/zed/settings/:rw

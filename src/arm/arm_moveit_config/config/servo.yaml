@@ -2,14 +2,17 @@ moveit_servo:
   ros__parameters:
     move_group_name: indomitus_arm
 
-    # Twist is applied in the mount / planning frame so stick XYZ moves the
-    # EEF in world/mount axes. Teleop rotates EEF roll/pitch/yaw into this
-    # frame before publish.
-    robot_link_command_frame: arm_mount_link
-
-    ee_frame_name: arm_tcp_link
-
-    planning_frame: arm_mount_link
+    # This file serves both Humble and Jazzy Servo; each ignores the other's
+    # parameters. Humble-only below are marked [humble], Jazzy-only [jazzy].
+    #
+    # Twist is applied in the mount frame so stick XYZ moves the EEF in mount
+    # axes (teleop rotates EEF roll/pitch/yaw into this frame before
+    # publish). Jazzy has no frame parameters: it uses the TwistStamped
+    # header frame (teleop stamps arm_mount_link) and the move group's tip
+    # (arm_tcp_link, see indomitus_arm.srdf).
+    robot_link_command_frame: arm_mount_link  # [humble]
+    ee_frame_name: arm_tcp_link               # [humble]
+    planning_frame: arm_mount_link            # [humble]
 
     cartesian_command_in_topic: servo_node/delta_twist_cmds
 
@@ -19,9 +22,15 @@ moveit_servo:
 
     status_topic: servo_node/status
 
-    # Stream joint position setpoints (not short JointTrajectory goals).
-    # Avoids JTC preempt/restart every publish_period — the main teleop jerk source.
-    command_out_topic: indomitus_arm_forward_position_controller/commands
+    # Jazzy: JointTrajectory into the JTC. In this mode servo_node keeps a
+    # rolling window of its own upcoming points and starts each cycle from the
+    # last of them, NOT from the measured joint state. With Float64MultiArray it
+    # re-anchors on the measurement every cycle, and the MIT motors' gravity
+    # offset (PD, no integral) then ratchets the arm down on every move. The
+    # multi-point window also makes JTC follow smoothly instead of restarting.
+    # Humble Servo has neither, so launch_utils.servo_node() switches it back to
+    # Float64MultiArray -> indomitus_arm_forward_position_controller there.
+    command_out_topic: indomitus_arm_controller/joint_trajectory
 
     # speed_units: this multiplies the teleop twist. 0.2 made W's per-cycle
     # joint step (~0.0006 rad) sit on the MIT position deadband (0.0005 rad),
@@ -38,7 +47,7 @@ moveit_servo:
     override_velocity_scaling_factor: 1.0
 
     command_in_type: speed_units
-    command_out_type: std_msgs/Float64MultiArray
+    command_out_type: trajectory_msgs/JointTrajectory
     # Step per cycle ≈ joint_vel * publish_period. Lower rate -> bigger step
     # per cycle -> more MIT position error -> more static torque authority
     # (see arm_hardware_interface's write(): it always sends one CAN frame
@@ -48,12 +57,14 @@ moveit_servo:
     publish_period: 0.01
 
     publish_joint_positions: true
-    # Float64MultiArray streaming is position-only (JointGroupPositionController).
-    publish_joint_velocities: false
+    # Velocities give the JTC spline its slopes and reach the motors as MIT
+    # velocity feedforward (JTC's velocity command interface). Humble's
+    # Float64MultiArray mode turns this off again (position-only array).
+    publish_joint_velocities: true
     publish_joint_accelerations: false
 
     incoming_command_timeout: 0.1
-    num_outgoing_halt_msgs_to_publish: 4
+    num_outgoing_halt_msgs_to_publish: 4  # [humble]
     halt_all_joints_in_joint_mode: true
     halt_all_joints_in_cartesian_mode: true
 
@@ -79,7 +90,9 @@ moveit_servo:
     hard_stop_singularity_threshold: 100000.0
     leaving_singularity_threshold_multiplier: 2.0
 
-    joint_limit_margin: 0.1
+    joint_limit_margin: 0.1  # [humble]
+    # One value per indomitus_arm joint.
+    joint_limit_margins: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1]  # [jazzy]
 
     is_primary_planning_scene_monitor: false
     monitored_planning_scene_topic: monitored_planning_scene

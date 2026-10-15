@@ -8,16 +8,16 @@
 </p>
 
 <p align="center">
-  <a href="https://docs.ros.org/en/humble/"><img alt="ROS 2 Humble" src="https://img.shields.io/badge/ROS%202-Humble-22314E?logo=ros&logoColor=white"></a>
-  <a href="https://releases.ubuntu.com/22.04/"><img alt="Ubuntu 22.04" src="https://img.shields.io/badge/Ubuntu-22.04-E95420?logo=ubuntu&logoColor=white"></a>
+  <a href="https://docs.ros.org/en/jazzy/"><img alt="ROS 2 Jzzy" src="https://img.shields.io/badge/ROS%202-Jazzy-22314E?logo=ros&logoColor=white"></a>
+  <a href="https://releases.ubuntu.com/24.04/"><img alt="Ubuntu 24.04" src="https://img.shields.io/badge/Ubuntu-24.04-E95420?logo=ubuntu&logoColor=white"></a>
   <img alt="Platform" src="https://img.shields.io/badge/platform-amd64%20%7C%20arm64-informational">
 </p>
 
 <p align="center">
-  <a href="https://github.com/UCUSpaceRobotics/indomitus-rover-core/actions/workflows/publish_image.yaml?query=branch%3Amain"><img alt="main build" src="https://img.shields.io/github/actions/workflow/status/UCUSpaceRobotics/indomitus-rover-core/publish_image.yaml?branch=main&label=main%20build&logo=github"></a>
-  <a href="https://github.com/UCUSpaceRobotics/indomitus-rover-core/actions/workflows/publish_image.yaml?query=branch%3Adevelop"><img alt="develop build" src="https://img.shields.io/github/actions/workflow/status/UCUSpaceRobotics/indomitus-rover-core/publish_image.yaml?branch=develop&label=develop%20build&logo=github"></a>
-  <a href="https://github.com/UCUSpaceRobotics/indomitus-rover-core/releases/latest"><img alt="main release" src="https://img.shields.io/github/v/release/UCUSpaceRobotics/indomitus-rover-core?label=main&color=green"></a>
-  <a href="https://github.com/UCUSpaceRobotics/indomitus-rover-core/releases"><img alt="develop release" src="https://img.shields.io/github/v/release/UCUSpaceRobotics/indomitus-rover-core?include_prereleases&label=develop"></a>
+  <a href="https://github.com/yuriifito/indomitus-rover-core-ai/actions/workflows/publish_image.yaml?query=branch%3Amain"><img alt="main build" src="https://img.shields.io/github/actions/workflow/status/yuriifito/indomitus-rover-core-ai/publish_image.yaml?branch=main&label=main%20build&logo=github"></a>
+  <a href="https://github.com/yuriifito/indomitus-rover-core-ai/actions/workflows/publish_image.yaml?query=branch%3Adevelop"><img alt="develop build" src="https://img.shields.io/github/actions/workflow/status/yuriifito/indomitus-rover-core-ai/publish_image.yaml?branch=develop&label=develop%20build&logo=github"></a>
+  <a href="https://github.com/yuriifito/indomitus-rover-core-ai/releases/latest"><img alt="main release" src="https://img.shields.io/github/v/release/yuriifito/indomitus-rover-core-ai?label=main&color=green"></a>
+  <a href="https://github.com/yuriifito/indomitus-rover-core-ai/releases"><img alt="develop release" src="https://img.shields.io/github/v/release/yuriifito/indomitus-rover-core-ai?include_prereleases&label=develop"></a>
 </p>
 
 ---
@@ -124,7 +124,7 @@ Follow these steps to power on and operate the rover using a laptop:
 
 7. **Start the joystick nodes:** Run the following command inside the laptop's container to start the nodes responsible for handling joystick input:
     ```bash
-    ros2 launch rover_teleop joy.launch.py
+    ros2 launch rover_teleop gamepad.launch.py
     ```
 
 8.  **Control the rover:** You are now ready to drive the rover using the joystick.

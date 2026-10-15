@@ -27,14 +27,15 @@ The script accepts the following flags to override defaults depending on the sub
 
 | Flag | Applies To | Description | Default |
 | --- | --- | --- | --- |
-| **`--name`** | `local`, `rover` | Docker container name | `rover_dev` (local), `rover_prod` (rover) |
+| **`--name`** | `local`, `rover` | Docker container name | `rover_dev` (local), `rover_ai` (rover) |
 | **`--compose`** | `local`, `rover` | Compose file path | `docker-compose.yaml` (local), `docker-compose.prod.yaml` (rover) |
-| **`--ros-distro`** | `local` | ROS 2 distribution name | `humble` |
+| **`--ros-distro`** | `local` | ROS 2 distribution name | `jazzy` |
 | **`--workspace`** | `local`, `rover` | ROS 2 workspace path inside container | `/opt/ws` |
 | **`--user`** | `rover` | Jetson SSH username | `indomitus-rover` |
 | **`--ip`** | `rover` | Jetson target IP/hostname | `10.42.0.1` |
 | **`--eth`** | `rover` | Use Ethernet target and skip hotspot auto-connect | `off` |
-| **`--dir`** | `rover` | Remote deployment directory | `/home/${JETSON_USER}/indomitus-rover-core/` |
+| **`--no-wifi`, `-n`** | `rover` | Skip the Wi-Fi auto-connect and ssh straight to the Jetson (already on the network, or connected some other way) | `off` |
+| **`--dir`** | `rover` | Remote deployment directory | `/home/${JETSON_USER}/indomitus-rover-core-ai/` |
 | **`--ssid`** | `rover` | Wi-Fi SSID of the Jetson hotspot | `ERC_UCUSpaceRobotics_A` |
 | **`--pass`** | `rover` | Wi-Fi password for the hotspot | `19283746` |
 | **`-h, --help`** | `local`, `rover` | Display help and exit | N/A |
@@ -42,5 +43,6 @@ The script accepts the following flags to override defaults depending on the sub
 ## Notes
 
 - In rover mode, `--eth` sets the target to `indomitus-rover-computer.local` and disables Wi-Fi auto-connect logic.
+- In rover mode, `--no-wifi`/`-n` skips the Wi-Fi auto-connect step and ssh's straight to the Jetson — use it when already on the network or connected some other way.
 - In rover mode, `--ip` always sets the final target address based on argument order (the last assignment wins).
 - Both local and rover shells source ROS and workspace setup files before opening an interactive shell.

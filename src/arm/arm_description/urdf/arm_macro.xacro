@@ -5,14 +5,6 @@
   <xacro:arg name="end_effector" default="jaw"/>
   <xacro:arg name="sim" default="false"/>
   <xacro:arg name="can_interface" default="can0"/>
-  <!-- When the arm is mounted into another robot's URDF (e.g. the rover, see
-       rover_description's mount_arm arg) that outer URDF already adds its
-       own single gz_ros2_control-system plugin covering every <ros2_control>
-       block in the combined model. Set this to false in that case so the
-       arm doesn't register a second, redundant controller_manager plugin
-       for the same Gazebo model. Standalone arm sim (arm_sim) leaves this
-       at the default so it keeps adding its own plugin as before. -->
-  <xacro:arg name="standalone_gz_plugin" default="true"/>
   <!-- camera:=false drops the simulated camera sensor (the URDF link and
        frames stay). Camera rendering is the main real-time-factor cost
        when the GPU isn't doing the rendering. -->
@@ -57,6 +49,8 @@
       <child link="arm_base_link"/>
       <origin xyz="0.06 0 0.021" rpy="0 0 ${-pi/2}"/>
       <axis xyz="0 0 1"/>
+      <!-- 0 = facing straight ahead along arm_mount_link (with the -pi/2
+           origin yaw above), +-90 deg either side. -->
       <limit lower="${-pi/2}" upper="${pi/2}" effort="100.0" velocity="1.0"/>
     </joint>
 
@@ -311,7 +305,7 @@
 
            Both use finger_limit_epsilon padding past their real travel
            (right only ever commanded in [0, finger_stroke], left in
-           [-finger_stroke, 0] — see keyboard_servo_node.py), because the
+           [-finger_stroke, 0] — see servo_controller.py), because the
            0 rest position and the finger_stroke fully-open position are
            real endpoints a finger sits at continuously, and DART (Gazebo's
            physics engine) was found to sometimes silently ignore further
@@ -477,6 +471,17 @@
             <param name="max_cmd_speed_rad_s">1.0</param>
             <!-- Activation aborts if any motor is silent for this long -->
             <param name="feedback_timeout_secs">2.0</param>
+            <!-- Deactivate (arm_teleop Release, arm parked on its support):
+                 stiffness ramps 100% -> 0 over release_ramp_secs, first for
+                 the shoulder and elbow, then for the rest, then the motors
+                 are disabled. If release_drift_tol_rad > 0, a joint moving
+                 more than that meanwhile means the arm is not supported:
+                 stiffness comes back and the arm stays active. Off (0): the
+                 park pose is only approximate (the resting pose is in
+                 collision for MoveIt), so the arm settles onto its support
+                 while relaxing. -->
+            <param name="release_ramp_secs">3.0</param>
+            <param name="release_drift_tol_rad">0.0</param>
             <param name="gravity_ff_enabled">true</param>
             <!-- Set to each motor family's own real rated capacity, not the
                  shared MIT-protocol packing scale (48 Nm) — that scale is
@@ -547,6 +552,7 @@
           <command_interface name="velocity"/>
           <state_interface name="position"/>
           <state_interface name="velocity"/>
+          <state_interface name="effort"/>
           <param name="motor_id">${motor_id}</param>
           <param name="direction">${direction}</param>
           <param name="offset">${offset}</param>
@@ -557,7 +563,9 @@
 
       <!-- MIT gains: protocol max kp=500, kd=5. Steadywin at ceiling to hold
            gravity; Damiao a step below to reduce wrist oscillation while stiff. -->
-      <xacro:arm_joint_control joint_name="arm_mount_base_joint"          motor_id="20" direction="-1" offset="0.0"  kp="500.0" kd="5.0"/>
+      <!-- Base offset pi/2: URDF 0 = facing forward (see the joint's origin yaw),
+           which is raw motor angle +pi/2 with this motor's saved zero. -->
+      <xacro:arm_joint_control joint_name="arm_mount_base_joint"          motor_id="20" direction="-1" offset="${pi/2}" kp="500.0" kd="5.0"/>
       <xacro:arm_joint_control joint_name="arm_base_shoulder_joint"       motor_id="21" direction="1"  offset="0.0"  kp="500.0" kd="5.0"/>
       <xacro:arm_joint_control joint_name="arm_shoulder_forearm_joint"    motor_id="22" direction="-1" offset="0.0"  kp="500.0" kd="5.0"/>
       <xacro:arm_joint_control joint_name="arm_forearm_wrist_1_joint"     motor_id="23" direction="-1" offset="0.0"  kp="400.0" kd="5.0"/>
@@ -626,15 +634,10 @@
       </ros2_control>
     </xacro:if>
 
+    <!-- No gz_ros2_control plugin here: the assembly that gets spawned into
+         Gazebo adds it (arm_standalone.urdf.xacro for arm-only sim,
+         indomitus_description's indomitus_gz.urdf.xacro when mounted). -->
     <xacro:if value="$(arg sim)">
-      <xacro:if value="$(arg standalone_gz_plugin)">
-        <gazebo>
-          <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
-            <parameters>$(find arm_sim)/config/ros2_controllers.yaml</parameters>
-          </plugin>
-        </gazebo>
-      </xacro:if>
-
       <gazebo reference="arm_mount_link">
         <visual>
           <material>

@@ -1,15 +1,15 @@
 """MoveIt-planned, collision-checked alignment to a detected panel.
 
-Separate node from ``keyboard_servo_node.py`` on purpose: MoveIt planning
+Separate node from ``servo_controller.py`` on purpose: MoveIt planning
 is a new, heavier dependency this codebase hasn't used before, and
 shouldn't be mixed into the input-handling module. Exposes one
-``std_srvs/srv/Trigger`` service (``align``), the same idiom already used
-for ``servo_node/start_servo``/``stop_servo``.
+``std_srvs/srv/Trigger`` service (``align``), the same idiom
+servo_controller.py already uses for ``panel_align/*``.
 
 ``align_to_panel()`` mirrors ``ServoController.move_to_safe_pose()``'s
 contract: returns ``bool``, never raises, logs a distinguishing message
 per failure mode, and never re-enables Servo itself — the caller (the
-'p'-key/gamepad-button handler in ``keyboard_servo_node.py``) decides
+'p'-key/gamepad-button handler in ``keyboard_input.py``/``gamepad_input.py``) decides
 what to do next.
 
 The panel is a completely separate Gazebo model, not part of the arm's
@@ -21,7 +21,7 @@ object we're deliberately moving toward."
 
 Every blocking sub-call in align_to_panel() (stop_servo, apply_planning_
 scene, /move_action, /execute_trajectory) waits on a threading.Event set
-from an rclpy done-callback — the same pattern keyboard_servo_node.py
+from an rclpy done-callback — the same pattern servo_controller.py
 uses successfully, but THERE it always runs on a background thread
 separate from the ROS spin thread. Here, align_to_panel() runs FROM
 _on_align_request, itself a callback invoked BY the executor — with the
@@ -59,7 +59,13 @@ from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from sensor_msgs.msg import CameraInfo, JointState
 from shape_msgs.msg import SolidPrimitive
-from std_srvs.srv import Trigger
+from std_srvs.srv import SetBool, Trigger
+
+try:  # Jazzy Servo is paused (SetBool); Humble Servo is stopped (Trigger).
+    from moveit_msgs.srv import ServoCommandType  # noqa: F401  (distro probe)
+    SERVO_API_JAZZY = True
+except ImportError:
+    SERVO_API_JAZZY = False
 
 from arm_teleop.arm_motion_lock import ArmMotionBusy, arm_motion_lock
 from arm_tasks.camera_target_math import (
@@ -90,7 +96,7 @@ PLANNING_FRAME = 'arm_mount_link'
 
 DEFAULT_PANEL_POSE_TOPIC = '/panel_pose'
 DEFAULT_CAMERA_INFO_TOPIC = '/camera/camera_info'
-# Must exceed keyboard_servo_node.py's ACTIVITY_INDICATOR_PRE_DELAY_SEC
+# Must exceed servo_controller.py's ACTIVITY_INDICATOR_PRE_DELAY_SEC
 # (5s) with margin: the align request only reaches this node AFTER that
 # wait, so the check here has to tolerate a detection drop spanning it.
 DEFAULT_MAX_PANEL_POSE_AGE_SEC = 8.0
@@ -142,7 +148,7 @@ DEFAULT_PANEL_CENTER_Z_OFFSET = 0.225  # PANEL_HEIGHT / 2 -- vertical center
 # both the post-plan margin check (step 7) and as OMPL path constraints
 # (see PANEL_JOINT_LIMIT_PATH_CONSTRAINTS below).
 JOINT_LIMITS = {
-    'arm_mount_base_joint': (-math.pi, math.pi),
+    'arm_mount_base_joint': (-math.pi / 2, math.pi / 2),
     'arm_base_shoulder_joint': (-math.pi, math.pi),
     'arm_shoulder_forearm_joint': (-math.pi / 2, math.pi / 2),
     'arm_forearm_wrist_1_joint': (-20 * math.pi / 18, 20 * math.pi / 18),
@@ -192,7 +198,7 @@ class PanelAlignNode(Node):
         # 1.15 fit the panel in frame with barely any margin; 1.4 fit it
         # comfortably but pushed arm_mount_base_joint to only 3.4% clear of
         # its limit (need 8%, see _check_joint_margins) — confirmed live at
-        # the current panel placement (arm_gazebo.launch.py's PANEL_X/Y/Z/YAW).
+        # the current panel placement (arm_gz.launch.py's PANEL_X/Y/Z/YAW).
         # 1.3 is the compromise: more framing margin than 1.15, still clear
         # of the joint-limit rejection 1.4 hit.
         self.declare_parameter('standoff_margin_multiplier', 1.3)
@@ -245,7 +251,7 @@ class PanelAlignNode(Node):
         self.declare_parameter('orient_gripper_path_position_radius', 0.05)
         # This 60s, summed with every other wait_for_service/server +
         # done.wait() in align_to_panel()'s sequence, must stay under
-        # keyboard_servo_node.py's DEFAULT_PANEL_ALIGN_TIMEOUT — see its
+        # servo_controller.py's DEFAULT_PANEL_ALIGN_TIMEOUT — see its
         # comment for the full worst-case budget. A parameter (not a
         # literal) so tests can shrink it instead of actually waiting 60s
         # to exercise the cancel-on-timeout path.
@@ -320,8 +326,12 @@ class PanelAlignNode(Node):
             ApplyPlanningScene, 'apply_planning_scene', callback_group=cb_group)
         self._compute_ik_client = self.create_client(
             GetPositionIK, 'compute_ik', callback_group=cb_group)
-        self._stop_servo_client = self.create_client(
-            Trigger, 'servo_node/stop_servo', callback_group=cb_group)
+        if SERVO_API_JAZZY:
+            self._stop_servo_client = self.create_client(
+                SetBool, 'servo_node/pause_servo', callback_group=cb_group)
+        else:
+            self._stop_servo_client = self.create_client(
+                Trigger, 'servo_node/stop_servo', callback_group=cb_group)
         self._switch_controller_client = self.create_client(
             SwitchController, 'controller_manager/switch_controller', callback_group=cb_group)
         self._acquire_lock_client = self.create_client(
@@ -761,7 +771,7 @@ class PanelAlignNode(Node):
 
     def _call_stop_servo(self) -> bool:
         if not self._stop_servo_client.wait_for_service(timeout_sec=2.0):
-            self.get_logger().warn('servo_node/stop_servo not available')
+            self.get_logger().warn(f'{self._stop_servo_client.srv_name} not available')
             return False
         done = threading.Event()
         result = {}
@@ -770,7 +780,8 @@ class PanelAlignNode(Node):
             result['r'] = fut.result()
             done.set()
 
-        self._stop_servo_client.call_async(Trigger.Request()).add_done_callback(_cb)
+        request = SetBool.Request(data=True) if SERVO_API_JAZZY else Trigger.Request()
+        self._stop_servo_client.call_async(request).add_done_callback(_cb)
         if not done.wait(timeout=3.0):
             return False
         return bool(result.get('r') and result['r'].success)
@@ -1075,7 +1086,7 @@ class PanelAlignNode(Node):
         if not done.wait(timeout=self.get_parameter('execution_timeout_sec').value):
             # Critical: NOT cancelling here would leave the JTC goal
             # running server-side after this function returns "failed" —
-            # keyboard_servo_node.py's align handler unconditionally
+            # keyboard_input.py's / gamepad_input.py's align handler unconditionally
             # restarts Servo (switching to the streaming controller)
             # right after any align outcome, success or failure. Without
             # this cancel-and-wait, that reactivation would race an

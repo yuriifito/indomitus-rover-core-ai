@@ -1,9 +1,10 @@
 # Мапінг геймпада для керування рукою (arm gamepad teleop)
 
 > Для ground station: точний перелік осей/кнопок геймпада, які використовує
-> `gamepad_servo_node` (`src/arm/arm_teleop/arm_teleop/keyboard_servo_node.py`,
-> клас `GamepadInputLoop`) для ручного керування рукою. Запускається через
-> `src/arm/arm_teleop/launch/gamepad.launch.py`.
+> `gamepad_servo_node` (`src/arm/arm_teleop/arm_teleop/gamepad_input.py`,
+> клас `GamepadInputLoop`) для ручного керування рукою. Сам вузол запускає
+> `src/arm/arm_teleop/launch/gamepad_servo.launch.py` (його включає `arm.launch.py`),
+> геймпад — `src/arm/arm_teleop/launch/gamepad_joy.launch.py` там, де він підключений.
 >
 > Індекси відповідають **канонічному SDL GameController мапінгу**
 > (`joy/game_controller_node`, а не сирий `joy_node`) — тобто той самий
@@ -32,7 +33,7 @@
 | `buttons[1]` | **B** | `BUTTON_SAMPLING_HOME` | Примусово вмикає sampling-режим і одразу веде руку в `sampling_home`. Працює лише коли на руці змонтовано `drill_sampling` інструмент (параметр `end_effector`) | по натисканню, one-shot (не тумблер — вимкнути назад можна тільки перезапуском з іншим `end_effector`) |
 | `buttons[2]` | **X** | `BUTTON_EXIT` | Вихід з програми teleop | по натисканню |
 | `buttons[3]` | **Y** | `BUTTON_DRILL_HOME` | Примусово вмикає drill-режим і веде руку в `drill_home`. Теж лише для `end_effector == 'drill_sampling'` | по натисканню, one-shot |
-| `buttons[4]` | BACK/SELECT | — | не використовується | — |
+| `buttons[4]` | **BACK/SELECT** (DualSense: Create) | `BUTTON_UNSTOW` | **unstow**: повільно підняти плече/лікоть з корпусу/основи до пози `unstow` (poses.json), без планувальника, лише вгору; потім Servo знову активний. Те саме, що клавіша `n` | по натисканню, one-shot |
 | `buttons[5]` | GUIDE (логотип) | — | не використовується | — |
 | `buttons[6]` | START (номінально) | `BUTTON_LEVEL` | **Пропущено — не налаштовувати.** Індекс не перевірений на реальному контролері, наразі не призначається на ground station | — |
 | `buttons[7]` | Лівий стік як кнопка (L3) | — | не використовується | — |
@@ -73,7 +74,7 @@
 | Лівий стік (осі 0/1) | Трансляція вліво/вправо, вперед/назад |
 | Правий стік (осі 2/3) | Yaw / вгору-вниз (звичайний режим), pitch/roll (з утриманим RB) |
 
-Кнопку **6 (START, `BUTTON_LEVEL`) не налаштовувати** — індекс не підтверджений на реальному контролері, функція наразі не використовується на ground station. Решта кнопок (BACK/SELECT (4), GUIDE (5), L3 (7), R3 (8)) також вільні — код на них не реагує.
+Кнопку **6 (START, `BUTTON_LEVEL`) не налаштовувати** — індекс не підтверджений на реальному контролері, функція наразі не використовується на ground station. GUIDE (5) вільна — код на неї не реагує.
 
 ## 3. Режими правого стіка (mode switching)
 
@@ -127,11 +128,11 @@ R1/shift ігнорується в sampling і drill режимах.
 
 ## 5. Кінцевий інструмент (end effector) — окремий CAN-канал
 
-Кнопки 11/12/13/14 шлють одноразові команди на топік `end_effector_controller/command`, а не через сервоконтур руки. Спрацьовують по натисканню (не по утриманню). Сам CAN живе в окремому вузлі, `arm_peripherals/end_effector_can_node.py` (не в `keyboard_servo_node.py`), який транслює ці команди в проводовий протокол змонтованого інструмента:
+Кнопки 11/12/13/14 шлють одноразові команди на топік `end_effector_controller/command`, а не через сервоконтур руки. Спрацьовують по натисканню (не по утриманню). Сам CAN живе в окремому вузлі, `arm_peripherals/end_effector_can_node.py` (не в `servo_controller.py`), який транслює ці команди в проводовий протокол змонтованого інструмента:
 
 - **jaw** (CAN `0x1A`): `SAFE_OPEN`/`SAFE_CLOSE`.
 - **drill_sampling** (CAN `0x1E`): `OPEN`(2)/`CLOSE`(1) для клешні, `UP`(5)/`DOWN`(4) для дриля, `LOCK`(7)/`UNLOCK`(8) для електрозамка.
 
 ## 6. Відомі розбіжності зі старою документацією
 
-`docs/arm/arm_teleop.md` описує **застарілий** мапінг: тільки базовий режим (без B/Y, без захвату, без push-boost, без level) і вказує дефолтний shift-button = 5, тоді як у коді дефолт — **10**. Цей документ (`arm_gamepad_mapping.md`) відображає поточний стан коду; при розбіжності орієнтуватись на нього і на клас `GamepadInputLoop` у `keyboard_servo_node.py`.
+`docs/arm/arm_teleop.md` описує **застарілий** мапінг: тільки базовий режим (без B/Y, без захвату, без push-boost, без level) і вказує дефолтний shift-button = 5, тоді як у коді дефолт — **10**. Цей документ (`arm_gamepad_mapping.md`) відображає поточний стан коду; при розбіжності орієнтуватись на нього і на клас `GamepadInputLoop` у `servo_controller.py`.
