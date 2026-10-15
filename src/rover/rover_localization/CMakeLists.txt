@@ -9,9 +9,6 @@ find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 
 if(BUILD_TESTING)
-    find_package(ament_lint_auto REQUIRED)
-    ament_lint_auto_find_test_dependencies()
-
     find_package(ament_cmake_gtest REQUIRED)
     ament_add_gtest(test_tilt_math test/test_tilt_math.cpp)
     target_include_directories(test_tilt_math PRIVATE

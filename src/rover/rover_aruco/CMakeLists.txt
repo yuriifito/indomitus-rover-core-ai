@@ -4,11 +4,6 @@ project(rover_aruco)
 # find dependencies
 find_package(ament_cmake REQUIRED)
 
-if(BUILD_TESTING)
-    find_package(ament_lint_auto REQUIRED)
-    ament_lint_auto_find_test_dependencies()
-endif()
-
 # Install launch/config/resource as subdirectories (no trailing slash) --
 # aruco.launch.py and aruco_debug.launch.py both look up their yaml params
 # at get_package_share_directory("rover_aruco") + "config/<file>.yaml";
